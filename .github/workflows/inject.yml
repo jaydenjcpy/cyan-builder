@@ -1,4 +1,4 @@
-name: Inject IPA with Cyan
+name: Inject IPA
 
 on:
   workflow_dispatch:
@@ -6,9 +6,17 @@ on:
       ipa_url:
         description: 'Direct link to the IPA file'
         required: true
-      cyan_url:
-        description: 'Direct link to the .cyan tweak file'
+      tweak_url:
+        description: 'Direct link to the tweak file (.cyan or .dylib)'
         required: true
+      tweak_type:
+        description: 'Type of tweak file'
+        required: true
+        default: 'dylib'
+        type: choice
+        options:
+          - dylib
+          - cyan
 
 jobs:
   inject:
@@ -21,7 +29,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip python3-venv curl unzip
+          sudo apt-get install -y python3-pip python3-venv curl unzip zstd binutils
 
       - name: Install pipx
         run: |
@@ -37,12 +45,25 @@ jobs:
       - name: Install cyan
         run: pipx install --force https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip
 
-      - name: Download IPA and Cyan tweak file
-        run: |
-          curl -L "${{ github.event.inputs.ipa_url }}" -o app.ipa
-          curl -L "${{ github.event.inputs.cyan_url }}" -o tweak.cyan
+      - name: Download IPA
+        run: curl -L "${{ github.event.inputs.ipa_url }}" -o app.ipa
 
-      - name: Inject tweak into IPA
+      - name: Download tweak (dylib)
+        if: ${{ github.event.inputs.tweak_type == 'dylib' }}
+        run: curl -L "${{ github.event.inputs.tweak_url }}" -o tweak.dylib
+
+      - name: Download tweak (cyan)
+        if: ${{ github.event.inputs.tweak_type == 'cyan' }}
+        run: |
+          curl -L "${{ github.event.inputs.tweak_url }}" -o tweak.cyan
+          unzip -l tweak.cyan || (echo "[!] tweak.cyan appears corrupt or invalid" && exit 1)
+
+      - name: Inject dylib into IPA
+        if: ${{ github.event.inputs.tweak_type == 'dylib' }}
+        run: cyan -i app.ipa -f tweak.dylib -o output.ipa
+
+      - name: Inject cyan into IPA
+        if: ${{ github.event.inputs.tweak_type == 'cyan' }}
         run: cyan -i app.ipa -z tweak.cyan -o output.ipa
 
       - name: Create draft release with injected IPA
