@@ -12,7 +12,7 @@ on:
       tweak_type:
         description: 'Type of tweak file'
         required: true
-        default: 'dylib'
+        default: 'cyan'
         type: choice
         options:
           - dylib
